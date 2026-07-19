@@ -26,6 +26,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "typescript": "^6.0.3",
     "@jest/globals": "^30.4.1",
     "@types/bcrypt": "^6.0.0",
     "@types/compression": "^1.8.1",
