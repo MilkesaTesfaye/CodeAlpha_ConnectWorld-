@@ -1,0 +1,74 @@
+# ConnectWorld Alerting Rules
+groups:
+  - name: connectworld-alerts
+    interval: 30s
+
+    rules:
+      # Service availability
+      - alert: ServiceDown
+        expr: up{job="connectworld-server"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Server is down"
+          description: "The ConnectWorld server has been unreachable for more than 1 minute."
+
+      - alert: WebSocketDown
+        expr: up{job="connectworld-websocket"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "WebSocket server is down"
+          description: "The WebSocket server has been unreachable for more than 1 minute."
+
+      # High error rate
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "HTTP 5xx error rate is above 5% for 5 minutes."
+
+      # High latency
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency"
+          description: "95th percentile request latency is above 2 seconds."
+
+      # Database connectivity
+      - alert: DatabaseDown
+        expr: mysql_up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "MySQL database is down"
+          description: "The MySQL database is unreachable."
+
+      # Redis connectivity
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "The Redis cache is unreachable."
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is above 90%."

@@ -1,0 +1,494 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+  USER
+  GUEST
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+enum ParticipantRole {
+  HOST
+  CO_HOST
+  PRESENTER
+  PARTICIPANT
+}
+
+enum ParticipantStatus {
+  INVITED
+  JOINED
+  LEFT
+  REMOVED
+  REJECTED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  VOICE
+  SYSTEM
+}
+
+enum NotificationType {
+  MEETING_INVITATION
+  MEETING_REMINDER
+  MENTION
+  CHAT_MESSAGE
+  FILE_SHARED
+  SYSTEM_ALERT
+  ADMIN_BROADCAST
+}
+
+enum DeviceType {
+  DESKTOP
+  MOBILE
+  TABLET
+  UNKNOWN
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  REGISTER
+  VERIFY_EMAIL
+  RESET_PASSWORD
+  JOIN_MEETING
+  LEAVE_MEETING
+  ROLE_CHANGE
+  USER_BAN
+  USER_UNBAN
+  FILE_UPLOAD
+  FILE_DELETE
+  SETTINGS_CHANGE
+}
+
+// ─── Permission ──────────────────────────────────────────────────────────────
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  roles       RolePermission[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  name        UserRole         @unique
+  description String?
+  users       User[]
+  permissions RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+}
+
+// ─── User ────────────────────────────────────────────────────────────────────
+
+model User {
+  id              String              @id @default(cuid())
+  email           String              @unique
+  passwordHash    String?
+  firstName       String?
+  lastName        String?
+  displayName     String?
+  bio             String?
+  avatarUrl       String?
+  roleId          String?
+  role            Role?               @relation(fields: [roleId], references: [id])
+  isEmailVerified Boolean             @default(false)
+  isActive        Boolean             @default(true)
+  isBanned        Boolean             @default(false)
+  bannedAt        DateTime?
+  banReason       String?
+  lastLoginAt     DateTime?
+  lastSeenAt      DateTime?
+  onlineStatus    String              @default("offline")
+  locale          String              @default("en")
+  theme           String              @default("system")
+  timezone        String?
+  googleId        String?
+  githubId        String?
+  authProvider    String              @default("local")
+  accounts        Account[]
+  sessions        Session[]
+  devices         Device[]
+  meetings        Meeting[]           @relation("MeetingHost")
+  participants    MeetingParticipant[]
+  messages        ChatMessage[]
+  files           File[]
+  notifications  Notification[]
+  auditLogs       AuditLog[]
+  settings        UserSetting?
+  activities      Activity[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  deletedAt       DateTime?
+
+  @@index([email])
+  @@index([googleId])
+  @@index([githubId])
+  @@index([roleId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String
+  providerAccountId String
+  refreshToken      String?
+  accessToken       String?
+  expiresAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+// ─── Session & Device ────────────────────────────────────────────────────────
+
+model Session {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken  String   @unique @db.VarChar(768)
+  userAgent     String?
+  ipAddress     String?
+  deviceId      String?
+  device        Device?  @relation(fields: [deviceId], references: [id])
+  isRevoked     Boolean  @default(false)
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  lastUsedAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([refreshToken])
+}
+
+model Device {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String?
+  type      DeviceType @default(UNKNOWN)
+  os        String?
+  browser   String?
+  ipAddress String?
+  isTrusted Boolean   @default(false)
+  lastUsedAt DateTime @default(now())
+  sessions  Session[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+// ─── Meeting ─────────────────────────────────────────────────────────────────
+
+model Meeting {
+  id              String              @id @default(cuid())
+  title           String
+  description     String?
+  password        String?
+  meetingId       String              @unique
+  hostId          String
+  host            User                @relation("MeetingHost", fields: [hostId], references: [id])
+  status          MeetingStatus       @default(SCHEDULED)
+  meetingType     String              @default("instant")
+  isRecurring     Boolean             @default(false)
+  recurringRule   String?
+  scheduledAt     DateTime?
+  startedAt       DateTime?
+  endedAt         DateTime?
+  maxParticipants Int                 @default(100)
+  hasWaitingRoom  Boolean             @default(true)
+  isLocked        Boolean             @default(false)
+  recordingUrl    String?
+  recordingEnabled Boolean            @default(false)
+  streamUrl       String?
+  participants    MeetingParticipant[]
+  chatMessages    ChatMessage[]
+  whiteboardObjs  WhiteboardObject[]
+  recordings      MeetingRecording[]
+  files           File[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  deletedAt       DateTime?
+
+  @@index([meetingId])
+  @@index([hostId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model MeetingParticipant {
+  id              String            @id @default(cuid())
+  meetingId       String
+  meeting         Meeting           @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User              @relation(fields: [userId], references: [id])
+  role            ParticipantRole   @default(PARTICIPANT)
+  status          ParticipantStatus @default(INVITED)
+  joinedAt        DateTime?
+  leftAt          DateTime?
+  isMuted         Boolean           @default(false)
+  isVideoEnabled  Boolean           @default(true)
+  isScreenSharing Boolean           @default(false)
+  isHandRaised    Boolean           @default(false)
+  isPinned        Boolean           @default(false)
+  deviceInfo      String?
+  networkQuality  Int?
+  createdAt       DateTime          @default(now())
+
+  @@unique([meetingId, userId])
+  @@index([meetingId])
+  @@index([userId])
+}
+
+// ─── Chat ────────────────────────────────────────────────────────────────────
+
+model ChatMessage {
+  id          String          @id @default(cuid())
+  meetingId   String?
+  meeting     Meeting?        @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  senderId    String
+  sender      User            @relation(fields: [senderId], references: [id])
+  receiverId  String?
+  content     String
+  messageType MessageType     @default(TEXT)
+  parentId    String?
+  parent      ChatMessage?    @relation("MessageThread", fields: [parentId], references: [id])
+  replies     ChatMessage[]   @relation("MessageThread")
+  isEdited    Boolean         @default(false)
+  isDeleted   Boolean         @default(false)
+  isPinned    Boolean         @default(false)
+  pinnedAt    DateTime?
+  fileName    String?
+  fileUrl     String?
+  fileSize    Int?
+  readBy      ReadReceipt[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([meetingId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([parentId])
+  @@index([createdAt])
+}
+
+model ReadReceipt {
+  id        String   @id @default(cuid())
+  messageId String
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  readAt    DateTime @default(now())
+
+  @@unique([messageId, userId])
+  @@index([userId])
+}
+
+// ─── File ────────────────────────────────────────────────────────────────────
+
+model File {
+  id          String    @id @default(cuid())
+  meetingId   String?
+  meeting     Meeting?  @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  uploaderId  String
+  uploader    User      @relation(fields: [uploaderId], references: [id])
+  originalName String
+  fileName    String    @unique
+  mimeType    String
+  size        Int
+  url         String
+  publicId    String?
+  folder      String?
+  thumbnailUrl String?
+  duration    Int?
+  version     Int       @default(1)
+  isDeleted   Boolean   @default(false)
+  versions    FileVersion[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([meetingId])
+  @@index([uploaderId])
+  @@index([fileName])
+}
+
+model FileVersion {
+  id         String   @id @default(cuid())
+  fileId     String
+  file       File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  version    Int
+  url        String
+  publicId   String?
+  size       Int
+  createdAt  DateTime @default(now())
+
+  @@unique([fileId, version])
+}
+
+// ─── Whiteboard ──────────────────────────────────────────────────────────────
+
+model WhiteboardObject {
+  id        String   @id @default(cuid())
+  meetingId String
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  type      String
+  data      Json
+  layer     Int      @default(0)
+  isVisible Boolean  @default(true)
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([meetingId])
+  @@index([meetingId, layer])
+}
+
+// ─── Recording ───────────────────────────────────────────────────────────────
+
+model MeetingRecording {
+  id          String   @id @default(cuid())
+  meetingId   String
+  meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  url         String
+  duration    Int
+  size        Int
+  format      String   @default("mp4")
+  status      String   @default("processing")
+  startedAt   DateTime
+  endedAt     DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([meetingId])
+}
+
+// ─── Notification ────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String?
+  data      Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+}
+
+// ─── Audit Log ───────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  userId     String?
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     AuditAction
+  resource   String
+  resourceId String?
+  details    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime    @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ─── Report ──────────────────────────────────────────────────────────────────
+
+model Report {
+  id          String   @id @default(cuid())
+  reporterId  String
+  targetId    String
+  targetType  String
+  reason      String
+  description String?
+  status      String   @default("pending")
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([targetId, targetType])
+  @@index([status])
+}
+
+// ─── User Settings ───────────────────────────────────────────────────────────
+
+model UserSetting {
+  id                   String  @id @default(cuid())
+  userId               String  @unique
+  user                 User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  language             String  @default("en")
+  theme                String  @default("system")
+  timezone             String?
+  emailNotifications   Boolean @default(true)
+  pushNotifications    Boolean @default(true)
+  desktopNotifications Boolean @default(true)
+  meetingReminders     Boolean @default(true)
+  messagePreview       Boolean @default(true)
+  showOnlineStatus     Boolean @default(true)
+  showLastSeen         Boolean @default(true)
+  autoJoinAudio        Boolean @default(false)
+  autoJoinVideo        Boolean @default(false)
+  blurBackground       Boolean @default(false)
+  virtualBackground    String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+// ─── Activity ────────────────────────────────────────────────────────────────
+
+model Activity {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}

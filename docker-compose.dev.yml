@@ -1,0 +1,92 @@
+# ─── Development Overrides ────────────────────────────────────────────────────
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+services:
+  # ─── MySQL (Persists data) ─────────────────────────────────────────────
+  mysql:
+    ports:
+      - "3306:3306" # Use standard port in dev for local tooling
+
+  # ─── Redis (Persists data) ─────────────────────────────────────────────
+  redis:
+    ports:
+      - "6379:6379" # Use standard port in dev for local tooling
+
+  # ─── Server (Hot-Reload) ───────────────────────────────────────────────
+  server:
+    build:
+      target: builder # Use builder stage for dev dependencies
+    container_name: connectworld-server-dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      # Mount source code for hot reload
+      - ./server/src:/app/src:delegated
+      - ./server/prisma:/app/prisma:delegated
+      - ./server/package.json:/app/package.json:delegated
+      - ./server/tsconfig.json:/app/tsconfig.json:delegated
+      # Exclude node_modules from the mount (use container's)
+      - /app/node_modules
+    command: npx ts-node-dev --respawn --transpile-only src/server.ts
+    ports:
+      - "9229:9229" # Debug port
+
+  # ─── Client (Hot-Reload with Vite) ─────────────────────────────────────
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    container_name: connectworld-client-dev
+    ports:
+      - "5173:5173" # Vite dev server
+    volumes:
+      - ./client/src:/app/src:delegated
+      - ./client/index.html:/app/index.html:delegated
+      - ./client/vite.config.ts:/app/vite.config.ts:delegated
+      - ./client/tsconfig.json:/app/tsconfig.json:delegated
+      - /app/node_modules
+    environment:
+      VITE_API_URL: /api
+      VITE_SOCKET_URL: http://localhost:5000
+    depends_on:
+      - server
+
+  # ─── Prisma Studio (Database GUI) ──────────────────────────────────────
+  prisma-studio:
+    image: node:22-alpine
+    container_name: connectworld-prisma-studio
+    working_dir: /app
+    networks:
+      - connectworld-network
+    ports:
+      - "5555:5555"
+    volumes:
+      - ./server/prisma:/app/prisma:ro
+      - ./server/package.json:/app/package.json:ro
+      - ./server/prisma.config.ts:/app/prisma.config.ts:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://${MYSQL_USER:-connectworld}:${MYSQL_PASSWORD:-connectworld_pass}@mysql:3306/${MYSQL_DATABASE:-connectworld}
+    entrypoint: >
+      sh -c "
+        npm install prisma@latest @prisma/client@latest &&
+        npx prisma studio --port 5555 --browser none
+      "
+
+  # ─── Redis Commander (Redis GUI) ───────────────────────────────────────
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: connectworld-redis-commander
+    restart: unless-stopped
+    networks:
+      - connectworld-network
+    ports:
+      - "8081:8081"
+    environment:
+      REDIS_HOSTS: local:redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-connectworld_redis}
+      HTTP_USER: admin
+      HTTP_PASSWORD: ${REDIS_COMMANDER_PASSWORD:-admin}
+    depends_on:
+      - redis

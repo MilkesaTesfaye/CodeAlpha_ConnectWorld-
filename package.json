@@ -1,0 +1,48 @@
+{
+  "name": "connectworld",
+  "version": "1.0.0",
+  "description": "ConnectWorld - Enterprise Real-Time Video Conferencing & Collaboration Platform",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:proxy\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "dev:proxy": "node scripts/dev-proxy.js",
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "cd server && npm run build",
+    "build:client": "cd client && npm run build",
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "prisma:generate": "cd server && npm run prisma:generate",
+    "prisma:push": "cd server && npm run prisma:push",
+    "prisma:seed": "cd server && npm run prisma:seed",
+    "prisma:studio": "cd server && npm run prisma:studio",
+    "test": "cd server && npm test && cd ../client && npm test",
+    "lint": "cd server && npm run lint && cd ../client && npm run lint",
+    "typecheck": "cd server && npm run typecheck && cd ../client && npm run typecheck",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "setup": "node scripts/setup.js"
+  },
+  "keywords": [
+    "video-conferencing",
+    "webrtc",
+    "collaboration",
+    "enterprise"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.2.3",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.5",
+    "@typescript-eslint/eslint-plugin": "^7.2.0",
+    "@typescript-eslint/parser": "^7.2.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.3",
+    "eslint-plugin-react": "^7.34.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-jsx-a11y": "^6.8.0",
+    "eslint-plugin-import": "^2.29.1",
+    "typescript": "^5.4.2"
+  }
+}

@@ -1,0 +1,64 @@
+# ConnectWorld Prometheus Configuration
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+# Alerting rules
+rule_files:
+  - "alerts.yml"
+
+# Scrape targets
+scrape_configs:
+  # Self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Backend API metrics
+  - job_name: 'connectworld-server'
+    metrics_path: '/api/metrics'
+    static_configs:
+      - targets: ['server:5000']
+        labels:
+          service: 'api'
+  - job_name: 'connectworld-server-node'
+    static_configs:
+      - targets: ['server:9100']  # node_exporter sidecar
+        labels:
+          service: 'server-node'
+
+  # WebSocket server metrics
+  - job_name: 'connectworld-websocket'
+    static_configs:
+      - targets: ['websocket-server:5001']
+        labels:
+          service: 'websocket'
+
+  # Media server metrics
+  - job_name: 'connectworld-media'
+    static_configs:
+      - targets: ['media-server:5002']
+        labels:
+          service: 'media'
+
+  # Database metrics
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['mysql-exporter:9104']
+        labels:
+          service: 'mysql'
+
+  # Redis metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+
+  # TURN server metrics
+  - job_name: 'coturn'
+    static_configs:
+      - targets: ['coturn:9641']
+        labels:
+          service: 'turn'
