@@ -44,6 +44,12 @@ const envSchema = z.object({
   // Client URL (for CORS and redirects)
   CLIENT_URL: z.string().default('http://localhost:5173'),
 
+  // Additional CORS origins (comma-separated for production)
+  CORS_ORIGINS: z.string().optional(),
+
+  // Custom domain (for production CORS)
+  DOMAIN: z.string().optional(),
+
   // Sentry Error Monitoring
   SENTRY_DSN: z.string().optional(),
 

@@ -1,0 +1,38 @@
+# ─── ConnectWorld Backend - Render Blueprint ─────────────────────────────────
+# https://render.com/docs/blueprint-spec
+#
+# How to use:
+# 1. Push code to GitHub
+# 2. In Render Dashboard → "New" → "Blueprint"
+# 3. Connect your GitHub repo
+# 4. Set the required env vars in Render Dashboard
+# 5. Render auto-deploys the backend
+#
+# NOTE: Free tier Web Services spin down after 15 min of inactivity.
+# The first request after idle will take ~30 seconds to wake up.
+
+services:
+  - type: web
+    name: connectworld-server
+    runtime: node
+    repo: https://github.com/yourusername/CodeAlpha_ConnectWorld
+    branch: main
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "5000"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: CLIENT_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false

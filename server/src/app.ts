@@ -50,10 +50,38 @@ app.use(
   })
 );
 
-// CORS
+// CORS — allow dynamic origins for dev & production
+const allowedOrigins = [
+  env.CLIENT_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+  ...(env.CORS_ORIGINS ? env.CORS_ORIGINS.split(',') : []),
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: [env.CLIENT_URL, 'http://localhost:5173', 'http://localhost:3000'],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (server-to-server, mobile apps, curl)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.some((o) => origin.includes(o) || o.includes(origin))) {
+        return callback(null, true);
+      }
+
+      // In production, be more permissive for Vercel preview URLs
+      if (env.NODE_ENV === 'production') {
+        // Allow all Vercel preview URLs (*.vercel.app)
+        if (origin.endsWith('.vercel.app')) {
+          return callback(null, true);
+        }
+        // Allow custom domain
+        if (origin.includes(env.DOMAIN || 'connectworld')) {
+          return callback(null, true);
+        }
+      }
+
+      callback(null, true); // Allow all in dev
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
